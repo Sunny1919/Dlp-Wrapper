@@ -1,0 +1,97 @@
+# © Author: aliyie
+# https://discord.gg/aerox
+
+# Render Blueprint — one-click deploy.
+#
+# Click "New Blueprint" on https://render.com and connect this repo; Render
+# will read this file and set everything up automatically.
+#
+# Notes:
+#   - Runtime is `docker` so we keep yt-dlp + ffmpeg bundled (Render runs the
+#     Dockerfile in the repo root).
+#   - Render sets PORT for us; we don't need to specify it. We do set NODE_ENV.
+#   - API_KEY is generated as a random 32-char string by Render Secrets — set
+#     this yourself to whatever you like, then send `x-api-key: <value>` to
+#     all API requests.
+
+services:
+  - type: web
+    name: dlp-wrapper
+    runtime: docker
+    # "starter" is undersized once this is fielding requests from an external
+    # web app + Discord bot at the same time — ffmpeg transcodes and yt-dlp
+    # extraction are both CPU/RAM hungry, and downloads use real (if
+    # ephemeral) disk. Bump to "standard" or higher before real traffic.
+    plan: standard
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: LOG_LEVEL
+        value: info
+      - key: API_KEY
+        generateValue: true   # Render mints a random value at first deploy
+        sync: false           # set to true if you want it syncable across regions
+      # Comma-separated list of origins allowed to call this API from
+      # browser JS (your web app's origin(s)). Discord bots and other
+      # server-side callers aren't affected by CORS and don't need this.
+      - key: ALLOWED_ORIGINS
+        value: https://your-web-app.example.com
+      # Reject downloads above this size before they fill ephemeral disk.
+      # yt-dlp size syntax, e.g. "500M" or "2G".
+      - key: YTDLP_MAX_FILESIZE
+        value: 500M
+      # Concurrency caps — keep in step with the plan's CPU/RAM.
+      - key: DLP_MAX_CONCURRENT_DOWNLOADS
+        value: 2
+      - key: DLP_MAX_CONCURRENT_INFO
+        value: 8
+      # Rate limits (requests per window per client IP).
+      - key: RATE_LIMIT_MAX
+        value: 30
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 60000
+      - key: DOWNLOAD_RATE_LIMIT_MAX
+        value: 10
+      - key: DOWNLOAD_RATE_LIMIT_WINDOW_MS
+        value: 600000
+      # Optional: queue instead of immediately rejecting once the
+      # concurrency cap above is hit.
+      # - key: QUEUE_ENABLED
+      #   value: true
+      # Optional: per-IP daily quota, separate from the short-window rate
+      # limits above.
+      # - key: QUOTA_ENABLED
+      #   value: true
+      # Optional: connects to a Render Key Value instance for a shared rate
+      # limit store, metadata cache, and quota counters — see the `keyvalue`
+      # block below.
+      # - key: REDIS_URL
+      #   fromService:
+      #     name: dlp-wrapper-cache
+      #     type: keyvalue
+      #     property: connectionString
+      # Optional: require this header to scrape GET /metrics.
+      # - key: METRICS_KEY
+      #   generateValue: true
+      # Optional: turn on YouTube support by uploading a cookies file to
+      # Render as a secret file and uncommenting:
+      # - key: YTDLP_COOKIES_FILE
+      #   value: /etc/secrets/cookies.txt
+      # - type: secret_file
+      #   path: /etc/secrets/cookies.txt
+      #   secret: youtube-cookies
+
+# Optional: a Render Key Value instance (Redis-compatible, runs Valkey) gives
+# the rate limiter, metadata cache, and per-IP quotas shared/persistent state
+# instead of in-memory-per-process. Uncomment this block and the REDIS_URL
+# envVar above to enable it.
+# keyvalue:
+#   - name: dlp-wrapper-cache
+#     plan: free
+#     ipAllowList: []   # empty = no external access; only Render services can reach it

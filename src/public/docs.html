@@ -1,0 +1,602 @@
+<!--
+  © Author: aliyie
+  https://discord.gg/aerox
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dlp Wrapper — self-hosted media API</title>
+<meta name="description" content="Dlp Wrapper: a self-hosted REST API wrapping yt-dlp for metadata, direct CDN URLs, and MP4/MP3 downloads from 1,750+ sites." />
+<style>
+  :root {
+    --bg: #060606;
+    --bg-raised: #0e0e0e;
+    --bg-inset: #0a0a0a;
+    --fg: #f3f3f1;
+    --fg-muted: #949490;
+    --fg-dim: #6b6b67;
+    --border: rgba(255,255,255,0.12);
+    --border-hover: rgba(255,255,255,0.38);
+    --glow: rgba(255,255,255,0.55);
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, "Segoe UI", ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
+    --radius: 6px;
+    --content-max: 780px;
+    --sidebar-w: 250px;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--fg);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    transition: text-shadow .18s ease, border-color .18s ease, color .18s ease;
+  }
+  a:hover, a:focus-visible {
+    border-color: var(--border-hover);
+    text-shadow: 0 0 8px var(--glow), 0 0 18px rgba(255,255,255,0.25);
+  }
+  a:focus-visible { outline: 1px solid var(--border-hover); outline-offset: 3px; }
+
+  h1, h2, h3, h4, nav, .btn, .badge, .kbd {
+    font-family: var(--mono);
+    letter-spacing: -0.01em;
+  }
+
+  h1 { font-size: 2rem; margin: 0 0 .25rem; font-weight: 600; }
+  h2 {
+    font-size: 1.25rem;
+    margin: 3rem 0 1rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  h3 { font-size: 1rem; margin: 2rem 0 .75rem; color: var(--fg); font-weight: 600; }
+  h3 code { font-size: .95rem; }
+  p { color: var(--fg-muted); margin: .75rem 0; }
+  p code, li code, td code { color: var(--fg); }
+
+  code {
+    font-family: var(--mono);
+    font-size: .85em;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .1em .4em;
+  }
+
+  pre {
+    position: relative;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    transition: border-color .18s ease;
+  }
+  pre:hover { border-color: var(--border-hover); }
+  pre code { background: none; border: none; padding: 0; font-size: .85rem; color: var(--fg); line-height: 1.6; }
+
+  .copy-btn {
+    position: absolute;
+    top: .5rem;
+    right: .5rem;
+    font-family: var(--mono);
+    font-size: .7rem;
+    color: var(--fg-muted);
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .3rem .55rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s ease, border-color .15s ease, color .15s ease, text-shadow .15s ease;
+  }
+  pre:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { border-color: var(--border-hover); color: var(--fg); text-shadow: 0 0 8px var(--glow); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .9rem; }
+  th, td { text-align: left; padding: .55rem .7rem; border: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--fg-dim); font-family: var(--mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 500; }
+  td { color: var(--fg-muted); }
+  tr:hover td { color: var(--fg); }
+
+  .badge {
+    display: inline-block;
+    font-size: .7rem;
+    padding: .15rem .5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--fg-muted);
+  }
+  .badge.get { color: #d8d8d5; border-color: rgba(255,255,255,0.25); }
+  .badge.required { color: #f3f3f1; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .85rem;
+    color: var(--fg);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: .55rem 1rem;
+    cursor: pointer;
+    transition: border-color .18s ease, text-shadow .18s ease, background .18s ease;
+  }
+  .btn:hover, .btn:focus-visible {
+    border-color: var(--border-hover);
+    text-shadow: 0 0 8px var(--glow);
+    background: #131313;
+  }
+
+  /* ---------------- layout ---------------- */
+  .shell { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    padding: 1.5rem 1.25rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: .3rem;
+  }
+  .logo .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--fg-muted);
+    font-size: .8rem;
+  }
+  .tagline { font-size: .78rem; color: var(--fg-dim); margin: 0 0 1.5rem; }
+
+  nav ul { list-style: none; margin: 0; padding: 0; }
+  nav .group { margin-bottom: 1.4rem; }
+  nav .group-label {
+    font-size: .68rem;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin: 0 0 .5rem;
+  }
+  nav a {
+    display: block;
+    font-size: .82rem;
+    padding: .32rem 0;
+    color: var(--fg-muted);
+    border-bottom: none;
+  }
+  nav a:hover, nav a:focus-visible { color: var(--fg); text-shadow: 0 0 8px var(--glow); }
+  nav a.active { color: var(--fg); border-left: 2px solid var(--fg); padding-left: .6rem; margin-left: -.62rem; }
+
+  main {
+    flex: 1;
+    min-width: 0;
+    padding: 3.5rem 2rem 6rem;
+  }
+  .content { max-width: var(--content-max); margin: 0 auto; }
+
+  .hero-cmd {
+    font-family: var(--mono);
+    font-size: .85rem;
+    color: var(--fg-muted);
+    margin-top: 1rem;
+  }
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--fg);
+    margin-left: 2px;
+    vertical-align: -2px;
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  ul.plain { padding-left: 1.1rem; color: var(--fg-muted); }
+  ul.plain li { margin: .4rem 0; }
+  ul.plain li strong { color: var(--fg); }
+
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--fg-muted);
+    border-radius: 4px;
+    padding: .85rem 1.1rem;
+    margin: 1.25rem 0;
+    font-size: .88rem;
+    color: var(--fg-muted);
+  }
+  .callout strong { color: var(--fg); }
+
+  .nav-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 20;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: .78rem;
+    color: var(--fg-dim);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  @media (max-width: 900px) {
+    .sidebar {
+      position: fixed;
+      left: 0; top: 0;
+      z-index: 15;
+      background: var(--bg);
+      transform: translateX(-100%);
+      transition: transform .2s ease;
+      box-shadow: 0 0 40px rgba(0,0,0,0.6);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .nav-toggle { display: inline-flex; }
+    main { padding: 4.5rem 1.25rem 4rem; }
+  }
+</style>
+</head>
+<body>
+  <button class="btn nav-toggle" id="navToggle" aria-label="Toggle navigation">☰ menu</button>
+
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="logo"><span class="mark">›_</span> Dlp Wrapper</div>
+      <p class="tagline">self-hosted media extraction API</p>
+      <nav>
+        <div class="group">
+          <p class="group-label">Start here</p>
+          <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#quick-start">Quick start</a></li>
+            <li><a href="#authentication">Authentication</a></li>
+          </ul>
+        </div>
+        <div class="group">
+          <p class="group-label">Endpoints</p>
+          <ul>
+            <li><a href="#endpoint-healthz">GET /healthz</a></li>
+            <li><a href="#endpoint-info">GET /media/info</a></li>
+            <li><a href="#endpoint-direct-url">GET /media/direct-url</a></li>
+            <li><a href="#endpoint-download">GET /media/download</a></li>
+          </ul>
+        </div>
+        <div class="group">
+          <p class="group-label">Operating it</p>
+          <ul>
+            <li><a href="#rate-limits">Rate limits &amp; concurrency</a></li>
+            <li><a href="#caching">Metadata caching</a></li>
+            <li><a href="#quotas">Per-IP quotas</a></li>
+            <li><a href="#metrics">Metrics</a></li>
+            <li><a href="#environment-variables">Environment variables</a></li>
+            <li><a href="#security">Security notes</a></li>
+            <li><a href="#youtube">YouTube &amp; cookies</a></li>
+          </ul>
+        </div>
+        <div class="group">
+          <p class="group-label">Integrate</p>
+          <ul>
+            <li><a href="#examples-curl">curl</a></li>
+            <li><a href="#examples-js">Web app (fetch)</a></li>
+            <li><a href="#examples-discord">Discord bot</a></li>
+          </ul>
+        </div>
+        <div class="group">
+          <p class="group-label">Deploy</p>
+          <ul>
+            <li><a href="#deploy-render">Render</a></li>
+            <li><a href="#deploy-docker">Docker</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="content">
+
+        <header id="overview">
+          <h1>Dlp Wrapper</h1>
+          <p>A self-hosted REST API wrapping <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp</a>. Fetch metadata, resolve direct CDN URLs, or download MP4/MP3 from 1,750+ sites — drop it into a web app or a Discord bot over plain HTTP.</p>
+          <div class="hero-cmd">$ curl -H "x-api-key: $KEY" "$BASE/api/media/info?url=..."<span class="cursor"></span></div>
+        </header>
+
+        <h2 id="quick-start">Quick start</h2>
+        <p>Every request goes through the base URL of wherever you've deployed this — locally that's <code>http://localhost:8080</code>, on Render it's the <code>onrender.com</code> URL your service gets.</p>
+
+        <pre><code># local
+npm install
+npm start
+# → listening on http://localhost:8080</code></pre>
+
+        <p>Every endpoint lives under <code>/api</code>. All routes below are relative to that.</p>
+
+        <h2 id="authentication">Authentication</h2>
+        <p>Set the <code>API_KEY</code> environment variable and every request must include it as a header:</p>
+        <pre><code>x-api-key: your-secret-key</code></pre>
+        <div class="callout"><strong>Left unset, the API is fully open.</strong> That's fine for poking at it locally, but set <code>API_KEY</code> before pointing a public URL at it. The key is checked with a constant-time comparison, and applies to every <code>/media/*</code> route — <code>/healthz</code> is always open.</div>
+
+        <h2 id="endpoint-healthz">
+          <span class="badge get">GET</span>
+          <code>/api/healthz</code>
+        </h2>
+        <p>Liveness check. No auth required. Returns:</p>
+        <pre><code>{ "status": "ok" }</code></pre>
+
+        <h2 id="endpoint-info">
+          <span class="badge get">GET</span>
+          <code>/api/media/info</code>
+        </h2>
+        <p>Full metadata for any yt-dlp-supported URL — title, thumbnail, duration, uploader, and every available format.</p>
+        <table>
+          <tr><th>Param</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>url</code></td><td><span class="badge required">required</span></td><td>Source URL. Must be a public <code>http</code>/<code>https</code> address.</td></tr>
+        </table>
+        <pre><code>curl -H "x-api-key: $KEY" \
+  "$BASE/api/media/info?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ"</code></pre>
+        <pre><code>{
+  "id": "dQw4w9WgXcQ",
+  "title": "...",
+  "description": "...",
+  "thumbnail": "https://...",
+  "durationSeconds": 212,
+  "uploader": "...",
+  "webpageUrl": "https://...",
+  "extractor": "youtube",
+  "formats": [
+    { "formatId": "22", "ext": "mp4", "resolution": "1280x720", "note": null,
+      "filesizeApprox": 34521098, "vcodec": "avc1.64001F", "acodec": "mp4a.40.2",
+      "hasVideo": true, "hasAudio": true }
+  ]
+}</code></pre>
+
+        <h2 id="endpoint-direct-url">
+          <span class="badge get">GET</span>
+          <code>/api/media/direct-url</code>
+        </h2>
+        <p>Resolves the underlying CDN URL(s) without routing any bytes through this server. Good for Discord embeds or an HTML5 <code>&lt;video src&gt;</code> — some CDNs will 403 without the original request headers, in which case fall back to <code>/media/download</code>.</p>
+        <table>
+          <tr><th>Param</th><th>Required</th><th>Default</th><th>Description</th></tr>
+          <tr><td><code>url</code></td><td><span class="badge required">required</span></td><td>—</td><td>Source URL</td></tr>
+          <tr><td><code>format</code></td><td>optional</td><td><code>best</code></td><td>yt-dlp format selector</td></tr>
+        </table>
+        <pre><code>curl -H "x-api-key: $KEY" \
+  "$BASE/api/media/direct-url?url=https://vimeo.com/76979871&format=best"</code></pre>
+        <pre><code>{ "title": "...", "urls": ["https://cdn.example.com/..."] }</code></pre>
+
+        <h2 id="endpoint-download">
+          <span class="badge get">GET</span>
+          <code>/api/media/download</code>
+        </h2>
+        <p>Downloads via yt-dlp into a temp directory, then streams the file back as an attachment.</p>
+        <table>
+          <tr><th>Param</th><th>Required</th><th>Default</th><th>Description</th></tr>
+          <tr><td><code>url</code></td><td><span class="badge required">required</span></td><td>—</td><td>Source URL</td></tr>
+          <tr><td><code>ext</code></td><td>optional</td><td><code>mp4</code></td><td><code>mp4</code> or <code>mp3</code></td></tr>
+          <tr><td><code>format</code></td><td>optional</td><td><code>bestvideo*+bestaudio/best</code></td><td>yt-dlp format selector. Only applies when <code>ext=mp4</code> — <code>mp3</code> always extracts <code>bestaudio/best</code>.</td></tr>
+        </table>
+        <pre><code>curl -H "x-api-key: $KEY" -OJ \
+  "$BASE/api/media/download?url=https://vimeo.com/76979871&ext=mp3"</code></pre>
+        <p>This endpoint has its own stricter rate limit and concurrency cap (see below) since each request spins up a real ffmpeg/yt-dlp process.</p>
+
+        <h2 id="rate-limits">Rate limits &amp; concurrency</h2>
+        <p>Two layers protect the container from being overwhelmed: a request-rate limit per client IP, and a hard cap on concurrent yt-dlp/ffmpeg processes.</p>
+        <table>
+          <tr><th>Env var</th><th>Default</th><th>Applies to</th></tr>
+          <tr><td><code>RATE_LIMIT_MAX</code> / <code>RATE_LIMIT_WINDOW_MS</code></td><td>30 / 60000</td><td>Whole API, per client IP</td></tr>
+          <tr><td><code>DOWNLOAD_RATE_LIMIT_MAX</code> / <code>DOWNLOAD_RATE_LIMIT_WINDOW_MS</code></td><td>10 / 600000</td><td><code>/media/download</code> only</td></tr>
+          <tr><td><code>DLP_MAX_CONCURRENT_INFO</code></td><td>8</td><td>Concurrent <code>/media/info</code> + <code>/media/direct-url</code></td></tr>
+          <tr><td><code>DLP_MAX_CONCURRENT_DOWNLOADS</code></td><td>2</td><td>Concurrent <code>/media/download</code></td></tr>
+        </table>
+        <p>By default, hitting the concurrency cap returns an immediate <code>429</code>. Set <code>QUEUE_ENABLED=true</code> to wait for a free slot instead:</p>
+        <table>
+          <tr><th>Env var</th><th>Default</th><th>Description</th></tr>
+          <tr><td><code>QUEUE_ENABLED</code></td><td>false</td><td>Queue instead of rejecting immediately</td></tr>
+          <tr><td><code>QUEUE_MAX_WAIT_MS</code></td><td>15000</td><td>Give up and return <code>429</code> after this long waiting</td></tr>
+          <tr><td><code>QUEUE_MAX_LENGTH</code></td><td>50</td><td>Reject immediately once this many requests are already waiting</td></tr>
+        </table>
+        <p>Set <code>REDIS_URL</code> to back the rate limiter with Redis instead of in-memory counters — counts then survive restarts and are shared across multiple instances rather than reset-per-process.</p>
+
+        <h2 id="caching">Metadata caching</h2>
+        <p><code>/media/info</code> and <code>/media/direct-url</code> cache their responses, since the same <code>url</code> is often requested repeatedly (a Discord command run twice, a web app re-rendering). <code>/media/download</code> is never cached — it's a stream, not a storable value.</p>
+        <table>
+          <tr><th>Env var</th><th>Default</th><th>Notes</th></tr>
+          <tr><td><code>CACHE_TTL_INFO_MS</code></td><td>300000</td><td>5 minutes</td></tr>
+          <tr><td><code>CACHE_TTL_DIRECT_URL_MS</code></td><td>120000</td><td>Shorter — CDN URLs carry short-lived expiry tokens</td></tr>
+          <tr><td><code>CACHE_MAX_ITEMS</code></td><td>500</td><td>In-memory fallback only; ignored when <code>REDIS_URL</code> is set</td></tr>
+        </table>
+        <p>Without <code>REDIS_URL</code>, the cache is an in-memory map scoped to this process. With it, entries are shared across every instance.</p>
+
+        <h2 id="quotas">Per-IP quotas</h2>
+        <p>A longer-window ceiling per IP, on top of the short-window rate limit above — e.g. "50 downloads per day" rather than "10 per 10 minutes". Opt-in, since not every self-hoster wants a hard daily cap.</p>
+        <table>
+          <tr><th>Env var</th><th>Default</th><th>Notes</th></tr>
+          <tr><td><code>QUOTA_ENABLED</code></td><td>false</td><td>Master switch for all three quotas below</td></tr>
+          <tr><td><code>QUOTA_WINDOW_MS</code></td><td>86400000</td><td>24 hours</td></tr>
+          <tr><td><code>QUOTA_MAX_INFO</code></td><td>500</td><td>Per IP, per window</td></tr>
+          <tr><td><code>QUOTA_MAX_DIRECT_URL</code></td><td>500</td><td>Per IP, per window</td></tr>
+          <tr><td><code>QUOTA_MAX_DOWNLOADS</code></td><td>50</td><td>Per IP, per window</td></tr>
+        </table>
+        <p>An IP over quota gets <code>429</code> with a <code>Retry-After</code> header. Counts use <code>REDIS_URL</code> when set, otherwise an in-memory map.</p>
+
+        <h2 id="metrics">Metrics</h2>
+        <p>Prometheus-format metrics are served at <code>GET /metrics</code>: request counts and latency per route, active job gauges, cache hit/miss counts, and quota rejections — plus the usual process/CPU/memory metrics.</p>
+        <pre><code>curl http://localhost:8080/metrics</code></pre>
+        <p>Set <code>METRICS_KEY</code> to require an <code>x-metrics-key</code> header on scrape requests. Left unset, <code>/metrics</code> is open — fine if you're only scraping it over a private network.</p>
+
+        <h2 id="environment-variables">Environment variables</h2>
+        <table>
+          <tr><th>Variable</th><th>Default</th><th>Notes</th></tr>
+          <tr><td><code>PORT</code></td><td>8080</td><td>Set automatically by Render</td></tr>
+          <tr><td><code>API_KEY</code></td><td>unset (open)</td><td>Set before exposing publicly</td></tr>
+          <tr><td><code>ALLOWED_ORIGINS</code></td><td>unset (no browser access)</td><td>Comma-separated origins allowed to call from browser JS. Server-to-server callers (Discord bots) are unaffected either way.</td></tr>
+          <tr><td><code>REDIS_URL</code></td><td>unset (in-memory fallback)</td><td>Shared rate-limit store, cache, and quota counters — see above</td></tr>
+          <tr><td><code>METRICS_KEY</code></td><td>unset (open)</td><td>Require this header to scrape <code>/metrics</code></td></tr>
+          <tr><td><code>YTDLP_MAX_FILESIZE</code></td><td>unset (no limit)</td><td>yt-dlp size syntax, e.g. <code>500M</code></td></tr>
+          <tr><td><code>YTDLP_DOWNLOAD_TIMEOUT_MS</code></td><td>600000</td><td>Kill downloads that run longer than this</td></tr>
+          <tr><td><code>YTDLP_COOKIES_FILE</code></td><td>unset</td><td>Path to a Netscape-format cookies file — required for YouTube</td></tr>
+          <tr><td><code>YTDLP_BIN</code></td><td><code>yt-dlp</code></td><td>Override only if the binary lives somewhere non-standard</td></tr>
+          <tr><td><code>LOG_LEVEL</code></td><td>info</td><td>trace / debug / info / warn / error / fatal</td></tr>
+        </table>
+        <p>See <a href="#rate-limits">rate limits</a>, <a href="#caching">caching</a>, and <a href="#quotas">quotas</a> above for the env vars specific to each.</p>
+
+        <h2 id="security">Security notes</h2>
+        <ul class="plain">
+          <li><strong>SSRF guard</strong> — every <code>url</code> is checked before it reaches yt-dlp: must be <code>http</code>/<code>https</code>, and must resolve to a public address (blocks loopback, private ranges, and cloud metadata endpoints).</li>
+          <li><strong>Constant-time key check</strong> — <code>API_KEY</code> comparison doesn't leak timing information.</li>
+          <li><strong>CORS is closed by default</strong> — no browser origin can call the API until you set <code>ALLOWED_ORIGINS</code>.</li>
+          <li><strong>Temp files are swept</strong> — per-request download directories are cleaned up on completion, with a periodic sweep for anything left behind by a crash.</li>
+        </ul>
+        <div class="callout">If a web app calls this API, don't ship <code>API_KEY</code> to client-side JS — proxy the request through your own backend instead. Anything sent to a browser is extractable.</div>
+
+        <h2 id="youtube">YouTube &amp; cookies</h2>
+        <p>YouTube requires cookies from a real browser session on any cloud IP — this is a yt-dlp limitation, not specific to this API.</p>
+        <ol class="plain">
+          <li>Export cookies in Netscape format (e.g. via a browser extension like "Get cookies.txt LOCALLY")</li>
+          <li>Mount the file into the container, e.g. at <code>/secrets/cookies.txt</code></li>
+          <li>Set <code>YTDLP_COOKIES_FILE=/secrets/cookies.txt</code></li>
+        </ol>
+        <p>From there, cookie handling is managed automatically:</p>
+        <ul class="plain">
+          <li><strong>Writable working copy</strong> — the file is copied to a writable temp path at startup. yt-dlp rewrites its cookie jar after every run as tokens rotate, which silently fails against a read-only mount (e.g. Render Secret Files) — working from a copy keeps that refresh working.</li>
+          <li><strong>Re-sync on change</strong> — the source file is re-checked on an interval (<code>COOKIE_SYNC_INTERVAL_MS</code>, default 5 minutes); dropping in a freshly exported file picks it up without a restart.</li>
+          <li><strong>Expiry warnings</strong> — the cookie jar's expiry timestamps are parsed and logged as a warning when entries are expired or expiring within <code>COOKIE_EXPIRY_WARNING_MS</code> (default 24h).</li>
+        </ul>
+        <p>That cookie session is shared by every caller of the API — treat it accordingly. None of this logs into anything on your behalf; you still export cookies from a real logged-in browser yourself.</p>
+
+        <h2 id="examples-curl">curl</h2>
+        <pre><code>BASE="https://your-app.onrender.com/api"
+KEY="your-secret-key"
+
+curl -H "x-api-key: $KEY" "$BASE/media/info?url=https://vimeo.com/76979871"
+curl -H "x-api-key: $KEY" "$BASE/media/direct-url?url=https://vimeo.com/76979871"
+curl -H "x-api-key: $KEY" -OJ "$BASE/media/download?url=https://vimeo.com/76979871&ext=mp4"</code></pre>
+
+        <h2 id="examples-js">Web app (fetch)</h2>
+        <p>Call this from your own backend, not directly from the browser, so the API key never reaches client-side JS:</p>
+        <pre><code>const res = await fetch(`${BASE}/media/info?url=${encodeURIComponent(url)}`, {
+  headers: { "x-api-key": process.env.DLP_WRAPPER_KEY },
+});
+const info = await res.json();</code></pre>
+
+        <h2 id="examples-discord">Discord bot</h2>
+        <p>A minimal <a href="https://discord.js.org" target="_blank" rel="noopener">discord.js</a> example ships in <code>examples/discord-bot</code>. The core call looks like:</p>
+        <pre><code>const r = await fetch(`${DLP_WRAPPER_BASE}/media/direct-url?url=${encodeURIComponent(url)}&format=best`, {
+  headers: { "x-api-key": DLP_WRAPPER_KEY },
+});
+const { urls } = await r.json();
+await message.reply(`Direct link: ${urls[0]}`);</code></pre>
+
+        <h2 id="deploy-render">Deploy — Render</h2>
+        <p>The repo includes a <code>render.yaml</code> blueprint.</p>
+        <ol class="plain">
+          <li>Push this repo to GitHub</li>
+          <li>On Render: <strong>New → Blueprint</strong>, connect the repo</li>
+          <li>Render reads <code>render.yaml</code> and provisions the service — it generates <code>API_KEY</code> for you</li>
+          <li>Set <code>ALLOWED_ORIGINS</code> to your web app's origin if it'll call the API from browser JS</li>
+          <li>Deploy — your base URL is <code>https://&lt;service-name&gt;.onrender.com/api</code></li>
+        </ol>
+        <div class="callout">The default plan in <code>render.yaml</code> is sized for light use. Bump it if you expect concurrent transcodes — ffmpeg and yt-dlp are both CPU/RAM heavy.</div>
+
+        <h2 id="deploy-docker">Deploy — Docker</h2>
+        <pre><code>docker build -t dlp-wrapper .
+docker run --rm -p 8080:8080 \
+  -e PORT=8080 \
+  -e API_KEY=your-secret-key \
+  dlp-wrapper</code></pre>
+
+        <footer>
+          <span>Dlp Wrapper</span>
+          <span>© Author: aliyie — <a href="https://discord.gg/aerox" target="_blank" rel="noopener">discord.gg/aerox</a></span>
+        </footer>
+
+      </div>
+    </main>
+  </div>
+
+<script>
+  // Mobile sidebar toggle
+  const sidebar = document.getElementById('sidebar');
+  const navToggle = document.getElementById('navToggle');
+  navToggle?.addEventListener('click', () => sidebar.classList.toggle('open'));
+  document.querySelectorAll('.sidebar nav a').forEach((a) => {
+    a.addEventListener('click', () => sidebar.classList.remove('open'));
+  });
+
+  // Scroll-spy active nav item
+  const navLinks = Array.from(document.querySelectorAll('.sidebar nav a'));
+  const sections = navLinks
+    .map((a) => document.querySelector(a.getAttribute('href')))
+    .filter(Boolean);
+
+  const setActive = () => {
+    let current = sections[0];
+    for (const s of sections) {
+      if (s.getBoundingClientRect().top - 80 <= 0) current = s;
+    }
+    navLinks.forEach((a) => {
+      a.classList.toggle('active', a.getAttribute('href') === `#${current.id}`);
+    });
+  };
+  document.addEventListener('scroll', setActive, { passive: true });
+  setActive();
+
+  // Copy-to-clipboard on every code block
+  document.querySelectorAll('pre').forEach((pre) => {
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.type = 'button';
+    btn.textContent = 'copy';
+    btn.addEventListener('click', async () => {
+      const text = pre.querySelector('code')?.innerText ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'copied';
+        setTimeout(() => (btn.textContent = 'copy'), 1200);
+      } catch {
+        btn.textContent = 'failed';
+        setTimeout(() => (btn.textContent = 'copy'), 1200);
+      }
+    });
+    pre.appendChild(btn);
+  });
+</script>
+</body>
+</html>

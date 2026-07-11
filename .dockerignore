@@ -1,0 +1,13 @@
+# © Author: aliyie
+# https://discord.gg/aerox
+
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.md
+test-output
+.DS_Store

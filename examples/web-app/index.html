@@ -1,0 +1,131 @@
+<!--
+  © Author: aliyie
+  https://discord.gg/aerox
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dlp Wrapper demo</title>
+    <style>
+      :root { color-scheme: dark light; font-family: ui-sans-serif, system-ui, sans-serif; }
+      body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+      h1 { margin-bottom: .25rem; }
+      .muted { color: #888; font-size: .9rem; }
+      form { display: flex; gap: .5rem; margin: 1rem 0; }
+      input { flex: 1; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+      button { padding: .5rem 1rem; border: 0; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; }
+      button[disabled] { opacity: .5; cursor: not-allowed; }
+      .card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+      .meta { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; font-size: .9rem; }
+      .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+      .err { color: #dc2626; }
+      video { max-width: 100%; border-radius: 8px; }
+      img.thumb { max-width: 200px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <h1>Dlp Wrapper demo</h1>
+    <p class="muted">Paste any URL yt-dlp supports (YouTube, Vimeo, TikTok, SoundCloud, etc.) — the metadata, direct play link, and download links are all fetched from the API.</p>
+
+    <form id="form">
+      <input id="url" type="url" required placeholder="https://vimeo.com/76979871" />
+      <button id="submit">Fetch</button>
+    </form>
+
+    <div id="status"></div>
+    <div id="result"></div>
+
+    <script type="module">
+      // ---------- config ----------
+      // ⚠️ DEMO ONLY. This calls Dlp Wrapper directly from the browser with the
+      // key read out of localStorage — fine for poking at your own local
+      // instance, but anyone who opens devtools on a real deployment can
+      // read `dlp_wrapper_key` and reuse it. For a real web app, don't ship the
+      // API key to the browser at all: add a small backend route of your
+      // own that holds the key server-side and forwards requests to Dlp Wrapper,
+      // and have this page call *that* route instead.
+      const API_BASE = location.searchParams?.get('api') || 'http://localhost:8080/api';
+      const API_KEY  = localStorage.getItem('dlp_wrapper_key') || '';
+
+      // ---------- DOM ----------
+      const $form    = document.getElementById('form');
+      const $url     = document.getElementById('url');
+      const $status  = document.getElementById('status');
+      const $result  = document.getElementById('result');
+
+      function headers() {
+        const h = {};
+        if (API_KEY) h['x-api-key'] = API_KEY;
+        return h;
+      }
+      function setStatus(msg, err) {
+        $status.innerHTML = err
+          ? `<p class="err">${msg}</p>`
+          : `<p class="muted">${msg}</p>`;
+      }
+
+      $form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = $url.value.trim();
+        if (!url) return;
+        $result.innerHTML = '';
+        setStatus('Fetching metadata…');
+
+        try {
+          // 1. metadata
+          const infoR = await fetch(`${API_BASE}/media/info?url=${encodeURIComponent(url)}`, { headers: headers() });
+          if (!infoR.ok) {
+            const { error } = await infoR.json().catch(() => ({}));
+            throw new Error(error || `HTTP ${infoR.status}`);
+          }
+          const info = await infoR.json();
+
+          // 2. direct URL (so the browser can stream without our server as middleman)
+          setStatus('Resolving direct stream URL…');
+          const directR = await fetch(`${API_BASE}/media/direct-url?url=${encodeURIComponent(url)}&format=best`, { headers: headers() });
+          if (!directR.ok) {
+            const { error } = await directR.json().catch(() => ({}));
+            throw new Error(error || `HTTP ${directR.status}`);
+          }
+          const direct = await directR.json();
+
+          setStatus('');
+
+          // 3. render
+          const dlMp4 = `${API_BASE}/media/download?url=${encodeURIComponent(url)}&ext=mp4`;
+          const dlMp3 = `${API_BASE}/media/download?url=${encodeURIComponent(url)}&ext=mp3`;
+          $result.innerHTML = `
+            <div class="card">
+              ${info.thumbnail ? `<img class="thumb" src="${info.thumbnail}" alt="" />` : ''}
+              <h2>${info.title}</h2>
+              <div class="meta">
+                <strong>Uploader</strong><span>${info.uploader ?? '–'}</span>
+                <strong>Duration</strong><span>${info.durationSeconds != null ? Math.round(info.durationSeconds) + 's' : '–'}</span>
+                <strong>Extractor</strong><span>${info.extractor ?? '–'}</span>
+                <strong>Formats</strong><span>${info.formats.length}</span>
+              </div>
+              <div class="actions">
+                <button id="play">▶ Play (no proxy)</button>
+                <a href="${dlMp4}"><button>⬇ Download MP4</button></a>
+                <a href="${dlMp3}"><button>⬇ Download MP3</button></a>
+              </div>
+              <div id="player" style="margin-top:1rem"></div>
+            </div>
+          `;
+
+          document.getElementById('play').onclick = () => {
+            const url = direct.urls[0];
+            const isAudio = (info.extractor ?? '').toLowerCase().includes('soundcloud') || /\.(mp3|m4a|ogg)/.test(url);
+            document.getElementById('player').innerHTML = isAudio
+              ? `<audio controls src="${url}"></audio>`
+              : `<video controls src="${url}"></video>`;
+          };
+        } catch (err) {
+          setStatus(`Error: ${err.message}`, true);
+        }
+      });
+    </script>
+  </body>
+</html>

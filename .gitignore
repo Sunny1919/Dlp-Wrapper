@@ -1,0 +1,21 @@
+# © Author: aliyie
+# https://discord.gg/aerox
+
+# Node / npm
+node_modules/
+npm-debug.log
+.pnpm-debug.log
+
+# Local config / secrets
+.env
+.env.local
+.env.*.local
+
+# Test/build artifacts
+test-output/
+*.tmp
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
