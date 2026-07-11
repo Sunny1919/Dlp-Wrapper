@@ -10,13 +10,9 @@
 **Made by Ayle**
 
 [![Join Discord](https://img.shields.io/badge/Discord-Join%20AeroX%20Development-5865F2?logo=discord&logoColor=white)](https://discord.gg/aerox)
-[![Online](https://img.shields.io/discord/YOUR_SERVER_ID?label=online&logo=discord&logoColor=white&color=5865F2)](https://discord.gg/aerox)
+[![Online](https://img.shields.io/discord/1414217749038891102?label=online&logo=discord&logoColor=white&color=5865F2)](https://discord.gg/aerox)
 
 </div>
-
-> The "online" badge needs your server's numeric ID, not the invite code — enable it under **Server Settings → Widget → Enable Server Widget**, copy the **Server ID** shown there, and replace `YOUR_SERVER_ID` above with it.
-
----
 
 ## Tech stack
 
