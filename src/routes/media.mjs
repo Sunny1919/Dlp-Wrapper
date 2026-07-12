@@ -158,6 +158,7 @@ const downloadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: buildRateLimitStore('dlpwrapper:rl:download:'),
+  passOnStoreError: true, // same reasoning as the general limiter in app.mjs
   message: { error: 'Too many download requests — please slow down' },
 });
 
@@ -275,7 +276,19 @@ router.get('/media/download', downloadLimiter, async (req, res) => {
 
   if (!(await acquireSlot(downloadSemaphore, 'download', req, res, 'Too many downloads in progress — please retry shortly'))) return;
 
-  const workDir = await mkdtemp(path.join(tmpdir(), TEMP_DIR_PREFIX));
+  // mkdtemp can fail (disk full, permissions) — without this guard, the
+  // rejection was unhandled here (Express 4 doesn't forward async
+  // rejections to error middleware automatically), which crashed the whole
+  // process for every in-flight request, not just this one.
+  let workDir;
+  try {
+    workDir = await mkdtemp(path.join(tmpdir(), TEMP_DIR_PREFIX));
+  } catch (err) {
+    req.log?.error({ err }, 'Failed to create temp download directory');
+    releaseSlot(downloadSemaphore, 'download');
+    sendError(res, 500, 'Failed to prepare download');
+    return;
+  }
   const outputTemplate = path.join(workDir, '%(id)s.%(ext)s');
 
   const args =

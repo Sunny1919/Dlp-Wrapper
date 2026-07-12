@@ -81,6 +81,11 @@ const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: buildRateLimitStore('dlpwrapper:rl:general:'),
+  // Default is to block traffic if the store throws — which would turn a
+  // transient Redis blip into a total outage (confirmed: killing Redis
+  // mid-session made even /healthz return 500). Fail open instead: no rate
+  // limiting during the outage beats no API at all.
+  passOnStoreError: true,
   message: { error: 'Too many requests — please slow down' },
 });
 // Documentation page. Not rate-limited or auth-gated — it's static and public.
@@ -100,8 +105,13 @@ app.get('/metrics', async (req, res) => {
       return;
     }
   }
-  res.set('Content-Type', registry.contentType);
-  res.end(await registry.metrics());
+  try {
+    res.set('Content-Type', registry.contentType);
+    res.end(await registry.metrics());
+  } catch (err) {
+    logger.error({ err }, 'Failed to collect metrics');
+    if (!res.headersSent) res.status(500).send('Failed to collect metrics');
+  }
 });
 
 app.use('/api', generalLimiter);

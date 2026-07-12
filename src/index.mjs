@@ -7,6 +7,28 @@ import { checkYtDlpBinary, sweepStaleTempDirs } from './lib/ytdlp.mjs';
 import { getRedisClient, isRedisConfigured } from './lib/redis.mjs';
 import { startCookieManager } from './lib/cookies.mjs';
 
+// Last-resort safety net. Every known unguarded path that could cause these
+// has been fixed at the source (see routes/media.mjs, app.mjs's /metrics),
+// but this stays as defense-in-depth against ones we haven't found yet.
+//
+// unhandledRejection: an async operation somewhere failed without a .catch
+// (Express 4 does not forward async route-handler rejections to error
+// middleware). That failure is scoped to whatever request triggered it, so
+// we log it and keep serving everyone else — the alternative, letting a
+// single unlucky request kill the whole process, is worse.
+//
+// uncaughtException: a synchronous throw escaped everything. Node's own
+// guidance is not to resume normal operation afterward, since process state
+// may be inconsistent — so this logs and exits, letting Render (or your
+// process manager) restart cleanly.
+process.on('unhandledRejection', (err) => {
+  logger.error({ err }, 'Unhandled promise rejection (recovered — see comment in index.mjs)');
+});
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception — exiting for a clean restart');
+  process.exit(1);
+});
+
 const rawPort = process.env.PORT ?? '8080';
 const port = Number(rawPort);
 

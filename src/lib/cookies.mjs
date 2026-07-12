@@ -18,7 +18,7 @@
 //   3. Parses the Netscape cookie file's expiry timestamps and logs a
 //      warning when entries are expired or expiring soon, so you know to
 //      re-export before requests start failing.
-import { copyFile, readFile, stat } from 'node:fs/promises';
+import { copyFile, chmod, readFile, rename, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { logger } from './logger.mjs';
@@ -68,7 +68,18 @@ async function syncOnce() {
   try {
     const info = await stat(SOURCE_FILE);
     if (info.mtimeMs === lastSourceMtimeMs) return; // unchanged since last sync
-    await copyFile(SOURCE_FILE, WRITABLE_PATH);
+
+    // copyFile() truncates-and-writes the destination in place — a yt-dlp
+    // process reading WRITABLE_PATH at that exact moment (this re-sync runs
+    // on an interval while the server keeps serving requests) could see a
+    // partially-written file. Copy to a side path and rename() into place
+    // instead — rename is atomic on POSIX filesystems, so readers always
+    // see either the complete old file or the complete new one.
+    const tempPath = `${WRITABLE_PATH}.tmp`;
+    await copyFile(SOURCE_FILE, tempPath);
+    await chmod(tempPath, 0o600); // session credentials — owner read/write only
+    await rename(tempPath, WRITABLE_PATH);
+
     lastSourceMtimeMs = info.mtimeMs;
     hasWritableCopy = true;
     logger.info({ source: SOURCE_FILE }, 'Cookie file synced to writable working copy');
