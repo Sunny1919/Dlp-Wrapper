@@ -36,7 +36,6 @@ services:
         value: info
       - key: API_KEY
         generateValue: true   # Render mints a random value at first deploy
-        sync: false           # set to true if you want it syncable across regions
       # Comma-separated list of origins allowed to call this API from
       # browser JS (your web app's origin(s)). Discord bots and other
       # server-side callers aren't affected by CORS and don't need this.
